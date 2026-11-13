@@ -28,7 +28,7 @@ On average the output needs about 13.5% of the original cycles (a 7.4× speed-up
 | Fuzzing: mutated and generated programs, random machines, malformed and wrong profiles | 2,000/2,000 cases correct, none slower |
 | Generated 100,000-instruction program | 3.0 s |
 | Generated 500,000-instruction program | 13.7 s |
-| Slowest public program (WSL 2, Ubuntu) | about 2.5 s; the search stops at a 3 s budget |
+| Slowest public program (WSL 2, Ubuntu) | about 2.5 s; the search stops at a fixed, clock-independent work limit |
 | Unit tests | 34 passing |
 
 ## How it works
@@ -44,7 +44,7 @@ On average the output needs about 13.5% of the original cycles (a 7.4× speed-up
    - straight-line CRC and parity code is rebuilt as a balanced xor tree over input bits;
    - small programs are replaced by a symbolic-execution decision tree.
 6. **Machine-specific placement.** Each block is list-scheduled forward and backward, and block-local renaming removes false dependencies. On machines with an LRU reload penalty, a beam search orders and names register-heavy blocks. Global interference-graph colouring is used when the program names more registers than the machine has. Block layout keeps hot fall-through edges and moves trap blocks off the hot path.
-7. **Self-checking selection.** Several pipeline variants are built, each with different placements. Every candidate is parsed again and checked against the machine's feature set. It is then run on bounded synthetic inputs through the real timing model and compared with the original on the full visible state. A candidate is accepted only if it is faster overall and not slower on any run that finishes within the probe budget. If nothing qualifies, the original is written unchanged. A time budget writes the best accepted result so far.
+7. **Self-checking selection.** Several pipeline variants are built, each with different placements. Every candidate is parsed again and checked against the machine's feature set. It is then run on bounded synthetic inputs through the real timing model and compared with the original on the full visible state. A candidate is accepted only if it is faster overall and not slower on any run that finishes within the probe budget. If nothing qualifies, the original is written unchanged. The search stops at a fixed work limit (instructions checked plus simulated steps), so the result depends only on the input.
 
 ## Correctness rules
 

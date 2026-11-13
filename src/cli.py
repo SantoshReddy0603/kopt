@@ -1,5 +1,4 @@
 import argparse
-import signal
 import sys
 from pathlib import Path
 
@@ -34,8 +33,6 @@ def names(blocks, params):
     return set(params) | {arg for body in blocks.values() for _, args in body for arg in args if is_reg(arg)}
 
 
-class Deadline(BaseException):
-    pass
 
 
 def lookup_version(program, original, params, machine, transformed, keep=None):
@@ -195,7 +192,13 @@ def optimize_source(source, program, machine, profile, disabled=frozenset(), kee
 
     seen = set()
     best_over = False
+    # Deterministic work limit: instructions checked plus simulated steps.
+    # It depends only on the input, so repeated runs stop at the same point.
+    work = [0]
     for blocks in candidates():
+        if work[0] > WORK_LIMIT:
+            break
+        work[0] += sum(len(body) for body in blocks.values())
         if list(blocks.items()) == list(original.items()):
             continue
         try:
@@ -205,7 +208,7 @@ def optimize_source(source, program, machine, profile, disabled=frozenset(), kee
         if text in seen:
             continue
         seen.add(text)
-        cycles = candidate_cycles(candidate, machine, baseline)
+        cycles = candidate_cycles(candidate, machine, baseline, work=work)
         if cycles is None:
             continue
         # On a tie, prefer a candidate that fits in the register file: the
@@ -221,9 +224,8 @@ def optimize_source(source, program, machine, profile, disabled=frozenset(), kee
     return best
 
 
-def budget(program):
-    """Seconds of optimization allowed before the best result so far is written."""
-    return 3.0 if len(program.instrs) <= 40000 else 20.0
+# About 1.5 times the most any public program needs (258k units).
+WORK_LIMIT = 400000
 
 
 def read_hints(path):
@@ -253,23 +255,8 @@ def main(argv=None):
         return 1
     profile = read_hints(args.profile)
     best = [source]
-
-    def expire(signum, frame):
-        raise Deadline()
-
-    timed = hasattr(signal, "setitimer")
-    if timed:
-        signal.signal(signal.SIGALRM, expire)
-        signal.setitimer(signal.ITIMER_REAL, budget(program))
     try:
-        try:
-            best[0] = optimize_source(source, program, machine, profile,
-                                      keep=lambda data: best.__setitem__(0, data))
-        finally:
-            if timed:
-                signal.setitimer(signal.ITIMER_REAL, 0)
-    except Deadline:
-        print("kopt: time budget reached, writing the best result so far", file=sys.stderr)
+        best[0] = optimize_source(source, program, machine, profile)
     except Exception as error:
         print("kopt: optimizer failed (%s), writing the input unchanged" % error, file=sys.stderr)
         best[0] = source

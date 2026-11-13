@@ -25,12 +25,14 @@ def baseline_runs(program, machine):
     return finished
 
 
-def candidate_cycles(program, machine, baseline, veto=True):
+def candidate_cycles(program, machine, baseline, veto=True, work=None):
     compiled = compile_program(program)
     total = 0
     for args, memory, ports, before, cycles in baseline:
         limit = min(before.steps * 20 + 1000, 2 * PROBE_STEPS)
         after = execute(compiled, args, memory, ports, limit, want_trace=True)
+        if work is not None:
+            work[0] += after.steps
         if (after.status != before.status or after.value != before.value
                 or after.vlog != before.vlog or after.mem[:SCRATCH_BASE] != before.mem[:SCRATCH_BASE]):
             return None

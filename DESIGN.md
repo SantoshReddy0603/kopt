@@ -6,6 +6,8 @@ The implementation includes jump threading, unreachable block removal, adjacent 
 
 `src/kirlib.py` adapts the organizer’s parser, machine reader, interpreter, and timing model. `src/ir.py` supplies the KIR writer. The published design headings and machine rules follow the kit. [Organizer kirlib.py](https://github.com/rudra-shroff06/LLH-26/blob/d23ac1d865df4cdacf7ad8e9fff3e1d560761c46/Compilers/COMP10/kirlib.py) · [KIR specification](https://github.com/rudra-shroff06/LLH-26/blob/d23ac1d865df4cdacf7ad8e9fff3e1d560761c46/Compilers/COMP10/KIR_SPEC.md) · [Submission rules](https://github.com/rudra-shroff06/LLH-26/blob/d23ac1d865df4cdacf7ad8e9fff3e1d560761c46/Compilers/COMP10/RULES_AND_SUBMISSION.md)
 
+Background: the bit tricks (SWAR population count, signed division by powers of two, division by a constant through its multiplicative inverse) are the standard ones described in H. S. Warren, *Hacker's Delight*; value numbering, liveness, list scheduling and graph-coloring register allocation are textbook compiler techniques. No compiler framework, solver or code from other projects is used.
+
 ## Pass order
 
 The command reads the program, machine and optional profile. It simplifies control flow, computes constants, rewrites expressions and memory operations, and removes newly unreachable blocks. It then looks for common expressions across edges and uses liveness to remove dead definitions and combine adjacent instructions.
@@ -16,7 +18,7 @@ For small programs and larger programs with a short path to a return or explicit
 
 Before that search, the specializing rewrites (lookup tables, polynomials and bit-vector closed forms) are tried on the original and on the rewritten program. They are exact for every input by construction, so their candidates are timed on 48 deterministic edge and pseudo-random argument sets instead of being vetoed per run. A specialized version is kept only if it is faster than the original on those arguments, and it is compared against the best probed candidate on the same arguments at the end. Each rewrite has its own safety conditions for unsampled inputs.
 
-The command always tries to leave a valid output. An unreadable or malformed profile is ignored. If any rewrite raises an unexpected error, the input is written unchanged. A wall-clock budget (3 seconds, or 20 seconds above 40,000 instructions) stops the search and writes the best candidate accepted so far.
+The command always tries to leave a valid output. An unreadable or malformed profile is ignored. If any rewrite raises an unexpected error, the input is written unchanged. The candidate search stops at a fixed work limit that depends only on the input. Nothing reads the clock.
 
 ## Each pass
 
@@ -69,3 +71,5 @@ The optional file contains `edge FROM TO COUNT` records. Layout considers counts
 Cross-edge expression reuse covers values available from immediate predecessors. Hoisting, unrolling and induction rewrites need a single-block loop, possibly after rotation. Multi-block loop bodies only get rotation, unless `select` conversion makes them a single block. Path splitting needs known addresses and few branch outcomes, so loops over data-dependent memory (sorting, sieves, hashing input arrays) keep their loops. Register renaming minimizes the number of names but does not choose which values to spill when even the renamed program needs more registers than the machine has. Work limits can cause the optimizer to leave additional opportunities unused.
 
 The block timing estimate approximates incoming register readiness and LRU state. Runtime cycle checks use bounded synthetic inputs and look for a short exit before simulating larger programs. Cycle counts on other inputs can differ, especially when control flow, memory latency, or register residency differs.
+
+The candidate search stops on a fixed work limit (instructions checked plus simulated steps, 400,000 units, about 1.5 times the most any public program needs), so where it stops depends only on the input and repeated runs give byte-identical output.

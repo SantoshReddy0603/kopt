@@ -359,9 +359,9 @@ entry:
             self.assertEqual(result.returncode, 0)
             self.assertTrue((directory / "out.kir").is_file())
 
-    def test_failure_and_deadline_fall_back_to_valid_output(self):
+    def test_failure_falls_back_to_valid_output(self):
         from src import cli
-        saved = cli.optimize_source, cli.budget
+        saved = cli.optimize_source
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
             (directory / "in.kir").write_text(self.SOURCE)
@@ -373,20 +373,12 @@ entry:
             def broken(*args, **kwargs):
                 raise RuntimeError("boom")
 
-            def slow(source, *args, keep=None, **kwargs):
-                keep(b"func f(v1)\nentry:\n  shl v3, v1, 3\n  ret v3\n")
-                while True:
-                    pass
-
             try:
                 cli.optimize_source = broken
                 self.assertEqual(cli.main(argv), 0)
                 self.assertEqual((directory / "out.kir").read_text(), self.SOURCE)
-                cli.optimize_source, cli.budget = slow, (lambda program: 0.2)
-                self.assertEqual(cli.main(argv), 0)
-                self.assertIn("shl v3, v1, 3", (directory / "out.kir").read_text())
             finally:
-                cli.optimize_source, cli.budget = saved
+                cli.optimize_source = saved
 
 
 if __name__ == "__main__":
